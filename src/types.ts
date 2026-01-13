@@ -5,6 +5,14 @@ export type Group = {
   enabled?: boolean;
 };
 
+export type SiteSettings = {
+  siteTitle: string;
+  siteSubtitle: string;
+  siteIconDataUrl: string;
+  faviconDataUrl: string;
+  siteIconFit: "contain" | "cover";
+};
+
 export type LinkItem = {
   id: string;
   groupId: string;
@@ -16,6 +24,7 @@ export type LinkItem = {
 };
 
 export type CloudNavData = {
+  settings?: SiteSettings;
   groups: Group[];
   links: LinkItem[];
 };

@@ -1,9 +1,10 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowDown, ArrowUp, Globe, LogOut, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Globe, LogOut, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
+import { BrandingCard } from "../components/BrandingCard";
 import { Modal } from "../components/Modal";
 import { Navbar } from "../components/Navbar";
 import { Switch } from "../components/Switch";
@@ -11,6 +12,7 @@ import { SortableOverlayList } from "../components/sortable/SortableOverlayList"
 import { ApiError, api } from "../lib/api";
 import { useMe } from "../lib/auth";
 import { faviconServiceUrl, normalizeFaviconUrl } from "../lib/favicon";
+import { applyFavicon } from "../lib/siteSettings";
 import { isHttpOrHttpsUrl, normalizeHttpUrl } from "../lib/url";
 import type { CloudNavData, Group, LinkItem } from "../types";
 
@@ -68,6 +70,10 @@ export default function Admin() {
     refreshData().catch((e: unknown) => setError(toErrorView(e, "加载失败")));
   }, []);
 
+  useEffect(() => {
+    applyFavicon(data?.settings?.faviconDataUrl);
+  }, [data?.settings?.faviconDataUrl]);
+
   const groups = useMemo(() => (data ? data.groups.slice().sort((a, b) => a.order - b.order) : []), [data]);
   const links = useMemo(() => (data ? data.links.slice() : []), [data]);
 
@@ -121,16 +127,6 @@ export default function Admin() {
       setError(toErrorView(e, "排序保存失败"));
       await refreshData();
     }
-  }
-
-  function moveId(ids: string[], id: string, dir: -1 | 1) {
-    const i = ids.indexOf(id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= ids.length) return ids;
-    const next = ids.slice();
-    const [moved] = next.splice(i, 1);
-    next.splice(j, 0, moved!);
-    return next;
   }
 
   async function createGroup(name: string) {
@@ -240,7 +236,7 @@ export default function Admin() {
 
   return (
     <div className="app-bg">
-      <Navbar authed={authed === true} />
+      <Navbar authed={authed === true} settings={data?.settings} />
       <main className="mx-auto max-w-6xl px-4 pb-20 pt-8">
         <motion.div
           initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
@@ -306,8 +302,6 @@ export default function Admin() {
                       handle={handle}
                       onSelect={() => setSelectedGroupId(g.id)}
                       onToggleEnabled={(next) => updateGroupEnabled(g.id, next).catch(() => undefined)}
-                      onMoveUp={() => reorderGroups(moveId(groups.map((x) => x.id), g.id, -1))}
-                      onMoveDown={() => reorderGroups(moveId(groups.map((x) => x.id), g.id, 1))}
                       onEdit={() => setEditingGroup(g)}
                       onDelete={() => {
                         if (!confirm(`删除分类「${g.name}」？该分类下的链接也会被删除。`)) return;
@@ -342,12 +336,6 @@ export default function Admin() {
                         link={l}
                         busy={busy}
                         handle={handle}
-                        onMoveUp={() =>
-                          reorderLinksInSelectedGroup(moveId(linksInSelectedGroup.map((x) => x.id), l.id, -1))
-                        }
-                        onMoveDown={() =>
-                          reorderLinksInSelectedGroup(moveId(linksInSelectedGroup.map((x) => x.id), l.id, 1))
-                        }
                         onEdit={() => setEditingLink(l)}
                         onDelete={() => {
                           if (!confirm(`删除链接「${l.title}」？`)) return;
@@ -368,9 +356,15 @@ export default function Admin() {
                   </div>
                 ) : null}
               </div>
-            </Card>
-          </div>
-        </motion.div>
+             </Card>
+           </div>
+
+           <BrandingCard
+             settings={data?.settings}
+             disabled={busy}
+             onSettingsSaved={(next) => setData((prev) => (prev ? { ...prev, settings: next } : prev))}
+           />
+         </motion.div>
       </main>
 
       <GroupModal
@@ -399,6 +393,7 @@ export default function Admin() {
 
       <LinkEditorModal
         open={creatingLink}
+        mode="create"
         title="新增链接"
         initial={{ title: "", url: "", description: "", icon: "" }}
         onClose={() => setCreatingLink(false)}
@@ -410,6 +405,7 @@ export default function Admin() {
 
       <LinkEditorModal
         open={!!editingLink}
+        mode="edit"
         title="编辑链接"
         initial={{
           title: editingLink?.title ?? "",
@@ -437,8 +433,6 @@ function GroupRow({
   overlay,
   onSelect,
   onToggleEnabled,
-  onMoveUp,
-  onMoveDown,
   onEdit,
   onDelete
 }: {
@@ -449,8 +443,6 @@ function GroupRow({
   overlay?: boolean;
   onSelect?: () => void;
   onToggleEnabled?: (next: boolean) => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -480,8 +472,6 @@ function GroupRow({
       </div>
 
       <div className="ml-auto flex flex-none items-center gap-1">
-        <Button variant="ghost" className="h-9 w-9 px-0" onClick={onMoveUp} disabled={!onMoveUp} leftIcon={<ArrowUp size={16} />} />
-        <Button variant="ghost" className="h-9 w-9 px-0" onClick={onMoveDown} disabled={!onMoveDown} leftIcon={<ArrowDown size={16} />} />
         <Button variant="ghost" className="h-9 w-9 px-0" onClick={onEdit} disabled={!onEdit} leftIcon={<Pencil size={16} />} />
         <Button variant="destructive" className="h-9 w-9 px-0" onClick={onDelete} disabled={!onDelete} leftIcon={<Trash2 size={16} />} />
       </div>
@@ -494,8 +484,6 @@ function LinkRow({
   busy,
   handle,
   overlay,
-  onMoveUp,
-  onMoveDown,
   onEdit,
   onDelete
 }: {
@@ -503,8 +491,6 @@ function LinkRow({
   busy: boolean;
   handle?: React.ReactNode;
   overlay?: boolean;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -530,8 +516,6 @@ function LinkRow({
         {link.description ? <div className="mt-1 line-clamp-2 text-xs text-muted">{link.description}</div> : null}
       </div>
       <div className="ml-auto flex flex-none items-center gap-1">
-        <Button variant="ghost" className="h-9 w-9 px-0" onClick={onMoveUp} disabled={!onMoveUp} leftIcon={<ArrowUp size={16} />} />
-        <Button variant="ghost" className="h-9 w-9 px-0" onClick={onMoveDown} disabled={!onMoveDown} leftIcon={<ArrowDown size={16} />} />
         <Button variant="ghost" className="h-9 w-9 px-0" onClick={onEdit} disabled={!onEdit} leftIcon={<Pencil size={16} />} />
         <Button variant="destructive" className="h-9 w-9 px-0" onClick={onDelete} disabled={!onDelete} leftIcon={<Trash2 size={16} />} />
       </div>
@@ -602,12 +586,14 @@ function GroupModal({
 
 function LinkEditorModal({
   open,
+  mode,
   title,
   initial,
   onClose,
   onSubmit
 }: {
   open: boolean;
+  mode: "create" | "edit";
   title: string;
   initial: { title: string; url: string; description: string; icon?: string };
   onClose: () => void;
@@ -618,10 +604,30 @@ function LinkEditorModal({
   const [descValue, setDescValue] = useState(initial.description);
   const [iconValue, setIconValue] = useState(initial.icon ?? "");
 
-  useEffect(() => setTitleValue(initial.title), [initial.title]);
-  useEffect(() => setUrlValue(initial.url), [initial.url]);
-  useEffect(() => setDescValue(initial.description), [initial.description]);
-  useEffect(() => setIconValue(initial.icon ?? ""), [initial.icon]);
+  useEffect(() => {
+    if (!open) {
+      if (mode === "create") {
+        setTitleValue("");
+        setUrlValue("");
+        setDescValue("");
+        setIconValue("");
+      }
+      return;
+    }
+
+    if (mode === "create") {
+      setTitleValue("");
+      setUrlValue("");
+      setDescValue("");
+      setIconValue("");
+      return;
+    }
+
+    setTitleValue(initial.title);
+    setUrlValue(initial.url);
+    setDescValue(initial.description);
+    setIconValue(initial.icon ?? "");
+  }, [open, mode, initial.title, initial.url, initial.description, initial.icon]);
 
   return (
     <Modal open={open} title={title} onClose={onClose}>

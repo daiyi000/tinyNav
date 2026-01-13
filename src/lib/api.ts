@@ -1,4 +1,4 @@
-import type { CloudNavData } from "../types";
+import type { CloudNavData, SiteSettings } from "../types";
 import { isHttpOrHttpsUrl, normalizeHttpUrl } from "./url";
 
 export type MeResponse = { authed: boolean };
@@ -49,6 +49,14 @@ export const api = {
   save: (data: CloudNavData) =>
     jsonFetch<{ ok: true }>("/api/admin/save", { method: "POST", body: JSON.stringify(data) }),
   admin: {
+    settings: {
+      get: () => jsonFetch<{ settings: SiteSettings }>("/api/admin/settings", { method: "GET", cache: "no-store" }),
+      update: (patch: Partial<SiteSettings>) =>
+        jsonFetch<{ ok: true; settings: SiteSettings }>("/api/admin/settings", {
+          method: "PUT",
+          body: JSON.stringify(patch)
+        })
+    },
     groups: {
       create: (name: string) =>
         jsonFetch<{ ok: true; group: CloudNavData["groups"][number] }>("/api/admin/groups", {

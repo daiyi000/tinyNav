@@ -2,9 +2,19 @@ type Env = {
   CLOUDNAV_KV: KVNamespace;
   PASSWORD: string;
   SESSION_SECRET?: string;
+  USE_FAVICON_SERVICE?: string;
+};
+
+export type SiteSettings = {
+  siteTitle: string;
+  siteSubtitle: string;
+  siteIconDataUrl: string;
+  faviconDataUrl: string;
+  siteIconFit: "contain" | "cover";
 };
 
 export type CloudNavData = {
+  settings?: SiteSettings;
   groups: { id: string; name: string; order: number; enabled?: boolean }[];
   links: {
     id: string;
@@ -22,7 +32,16 @@ export const LOGIN_FAIL_KEY_PREFIX = "cloudnav:login-fails:";
 export const SESSION_COOKIE = "cloudnav_session";
 export const SESSION_DAYS = 7;
 
+export const defaultSettings: SiteSettings = {
+  siteTitle: "AppleBar",
+  siteSubtitle: "个人导航",
+  siteIconDataUrl: "",
+  faviconDataUrl: "",
+  siteIconFit: "contain"
+};
+
 export const defaultSeedData: CloudNavData = {
+  settings: defaultSettings,
   groups: [
     { id: "g-dev", name: "开发", order: 0, enabled: true },
     { id: "g-life", name: "日常", order: 1, enabled: true },
@@ -236,7 +255,33 @@ export async function saveData(env: Env, data: CloudNavData) {
   await env.CLOUDNAV_KV.put(DATA_KEY, JSON.stringify(data));
 }
 
+export function normalizeSettings(input: CloudNavData["settings"]): SiteSettings {
+  const s: any = input ?? {};
+  const out: SiteSettings = {
+    siteTitle: typeof s.siteTitle === "string" ? s.siteTitle.trim() : defaultSettings.siteTitle,
+    siteSubtitle: typeof s.siteSubtitle === "string" ? s.siteSubtitle.trim() : defaultSettings.siteSubtitle,
+    siteIconDataUrl:
+      typeof s.siteIconDataUrl === "string"
+        ? s.siteIconDataUrl.trim()
+        : typeof s.siteIcon === "string"
+          ? s.siteIcon.trim()
+          : defaultSettings.siteIconDataUrl,
+    faviconDataUrl:
+      typeof s.faviconDataUrl === "string"
+        ? s.faviconDataUrl.trim()
+        : typeof s.favicon === "string"
+          ? s.favicon.trim()
+          : defaultSettings.faviconDataUrl,
+    siteIconFit: s.siteIconFit === "cover" ? "cover" : "contain"
+  };
+
+  if (!out.siteTitle) out.siteTitle = defaultSettings.siteTitle;
+  if (!out.siteSubtitle) out.siteSubtitle = defaultSettings.siteSubtitle;
+  return out;
+}
+
 export function normalizeData(data: CloudNavData): CloudNavData {
+  const settings = normalizeSettings(data.settings);
   const groups = data.groups.slice().sort((a, b) => a.order - b.order);
   for (let i = 0; i < groups.length; i++)
     groups[i] = { ...groups[i], order: i, enabled: typeof groups[i].enabled === "boolean" ? groups[i].enabled : true };
@@ -257,7 +302,7 @@ export function normalizeData(data: CloudNavData): CloudNavData {
     for (let i = 0; i < arr.length; i++) links.push({ ...arr[i], order: i });
   }
 
-  return { groups, links };
+  return { settings, groups, links };
 }
 
 export function getClientIp(req: Request) {

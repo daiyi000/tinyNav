@@ -1,4 +1,4 @@
-import { json, readBodyJson, requireAuth, saveData } from "../_utils";
+import { json, loadData, normalizeData, readBodyJson, requireAuth, saveData } from "../_utils";
 
 export const onRequestPost: PagesFunction = async (ctx) => {
   const env = ctx.env as any;
@@ -16,6 +16,13 @@ export const onRequestPost: PagesFunction = async (ctx) => {
     return json({ error: "Invalid data" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 
-  await saveData(env, body);
+  const existing = await loadData(env);
+  const merged = normalizeData({
+    ...existing,
+    ...body,
+    settings: body?.settings ?? existing.settings
+  });
+
+  await saveData(env, merged);
   return json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 };
