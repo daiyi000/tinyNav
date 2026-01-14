@@ -1,4 +1,4 @@
-# TinyNav（Apple-like 个人导航站）
+# TinyNav（个人导航站）
 
 本项目是一个 **Cloudflare Workers（静态站 + API 一体）** 的导航站：
 - 前端：Vite 构建输出到 `dist/`
