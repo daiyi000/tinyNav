@@ -49,6 +49,11 @@ export const api = {
   save: (data: CloudNavData) =>
     jsonFetch<{ ok: true }>("/api/admin/save", { method: "POST", body: JSON.stringify(data) }),
   admin: {
+    fetchTitle: (url: string) =>
+      jsonFetch<{ title: string }>("/api/admin/fetch-title", {
+        method: "POST",
+        body: JSON.stringify({ url })
+      }),
     settings: {
       get: () => jsonFetch<{ settings: SiteSettings }>("/api/admin/settings", { method: "GET", cache: "no-store" }),
       update: (patch: Partial<SiteSettings>) =>

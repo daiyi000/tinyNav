@@ -905,6 +905,8 @@ function LinkEditorModal({
   const [descValue, setDescValue] = useState(initial.description);
   const [iconValue, setIconValue] = useState(initial.icon ?? "");
   const [sectionIdValue, setSectionIdValue] = useState(initial.sectionId);
+  const [fetchTitleBusy, setFetchTitleBusy] = useState(false);
+  const [fetchTitleError, setFetchTitleError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -914,6 +916,8 @@ function LinkEditorModal({
         setDescValue("");
         setIconValue("");
         setSectionIdValue(initial.sectionId);
+        setFetchTitleBusy(false);
+        setFetchTitleError(null);
       }
       return;
     }
@@ -924,6 +928,8 @@ function LinkEditorModal({
       setDescValue("");
       setIconValue("");
       setSectionIdValue(initial.sectionId);
+      setFetchTitleBusy(false);
+      setFetchTitleError(null);
       return;
     }
 
@@ -932,7 +938,33 @@ function LinkEditorModal({
     setDescValue(initial.description);
     setIconValue(initial.icon ?? "");
     setSectionIdValue(initial.sectionId);
+    setFetchTitleBusy(false);
+    setFetchTitleError(null);
   }, [open, mode, initial.title, initial.url, initial.description, initial.icon, initial.sectionId]);
+
+  async function fetchTitleIntoForm() {
+    setFetchTitleError(null);
+    const normalized = isHttpOrHttpsUrl(urlValue) ? urlValue : normalizeHttpUrl(urlValue);
+    if (normalized && normalized !== urlValue) setUrlValue(normalized);
+    if (!normalized) return;
+
+    setFetchTitleBusy(true);
+    try {
+      const res = await api.admin.fetchTitle(normalized);
+      const fetched = (res.title ?? "").toString().trim().replace(/\s+/g, " ");
+      if (!fetched) {
+        setFetchTitleError("未能获取到网页标题");
+        return;
+      }
+
+      if (!descValue.trim()) setDescValue(fetched);
+      if (!titleValue.trim()) setTitleValue(fetched);
+    } catch (e: unknown) {
+      setFetchTitleError(e instanceof ApiError ? e.message : "自动获取标题失败");
+    } finally {
+      setFetchTitleBusy(false);
+    }
+  }
 
   return (
     <Modal open={open} title={title} onClose={onClose}>
@@ -960,6 +992,23 @@ function LinkEditorModal({
             className="glass w-full rounded-2xl px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
             placeholder="https://..."
           />
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              variant="secondary"
+              className="h-9 px-3"
+              leftIcon={<RefreshCw size={18} className={fetchTitleBusy ? "animate-spin" : ""} />}
+              onClick={() => fetchTitleIntoForm()}
+              disabled={!urlValue.trim() || fetchTitleBusy}
+            >
+              自动获取标题
+            </Button>
+            <div className="text-xs text-muted">将网页标题填入描述</div>
+          </div>
+          {fetchTitleError ? (
+            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-3 py-2 text-xs text-danger">
+              {fetchTitleError}
+            </div>
+          ) : null}
         </label>
 
         <label className="block space-y-2">
