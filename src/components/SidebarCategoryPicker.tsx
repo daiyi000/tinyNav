@@ -149,7 +149,7 @@ export function SidebarCategoryPicker({
   };
 
   return (
-    <div className="glass w-full max-w-[240px] rounded-3xl border border-[#ffffff] p-1.5 shadow-soft dark:border-[#ffffff] dark:shadow-softDark">
+    <div className="glass w-full max-w-[240px] rounded-3xl p-1.5 shadow-soft dark:shadow-softDark">
       <div className="px-2.5 pb-1.5 pt-1.5 text-[11px] font-medium text-fg/70">分类</div>
       <div className="relative">
         <div
@@ -160,7 +160,7 @@ export function SidebarCategoryPicker({
             <motion.div
               aria-hidden
               style={{ y, height: dropletHeight, opacity: draggingOpacity, ["--hlY" as any]: highlightY }}
-              className="absolute inset-x-1 top-0 z-20 cursor-grab rounded-full border border-[#ffffff] bg-white/18 shadow-[0_12px_26px_rgba(0,0,0,0.14)] backdrop-blur-md active:cursor-grabbing dark:border-[#ffffff] dark:bg-white/8 dark:shadow-[0_18px_44px_rgba(0,0,0,0.42)]"
+              className="absolute inset-x-1 top-0 z-20 cursor-grab rounded-full border border-[rgb(var(--border)/0.12)] bg-white/18 shadow-[0_12px_26px_rgba(0,0,0,0.14)] backdrop-blur-md active:cursor-grabbing dark:bg-white/8 dark:shadow-[0_18px_44px_rgba(0,0,0,0.42)]"
               onPointerDown={startPointerDrag}
               onPointerMove={movePointerDrag}
               onPointerUp={endPointerDrag}
