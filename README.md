@@ -16,21 +16,15 @@
 ## 本地开发
 
 ```bash
-npm i
-npm run dev
+npm run build
+npx wrangler dev --port 8788
 ```
 
-`npm run dev` 只跑前端（Vite）。要本地同时跑 Worker（静态 + API + DO）：
-
-```bash
-npm run dev:worker
-```
-
-`.dev.vars`（不要提交）示例：
+本地开发需要创建 `.dev.vars` 文件（不要提交），示例：
 
 ```ini
-PASSWORD=admin
-SESSION_SECRET=your_long_random_secret
+PASSWORD=114514
+SESSION_SECRET=OHLs9d5DWAGnnE
 ```
 
 ## 部署（CI / Cloudflare 构建环境）
@@ -44,6 +38,45 @@ SESSION_SECRET=your_long_random_secret
   - 如果未配置：所有 `/api/admin/*` 写接口会返回 `503` 并提示缺少 PASSWORD（不会给默认密码，避免后台暴露）
   - 公开接口 `/api/links` 仍可读（返回初始化数据结构）
 - `SESSION_SECRET`（可选）：建议配置；不配则从 `PASSWORD` 派生
+
+## Cloudflare 控制台部署教程
+
+fork仓库  
+打开cloudflare  
+点击计算和AI下的Workers and Pages  
+创建应用程序选择tinyNav  
+项目名称小写（tinynav）  
+构建命令 npm run build  
+部署命令 npx wrangler deploy  
+部署  
+
+找到存储和数据库  
+Workers KV  
+创建kv命名空间  
+名称：CLOUDNAV_DB  
+
+回到workers and Pages  
+绑定 添加绑定KV命名空间  
+变量名称：db  
+kv命名空间选择 CLOUDNAV_DB  
+添加绑定  
+
+点击设置 → 变量和机密 → 为运行时使用的 Worker 定义环境变量和机密  
+添加变量
+
+类型：文本  
+变量名称：PASSWORD  
+值：xxxx（自己设置）
+
+类型：文本  
+变量名称：SESSION_SECRET  
+值：xxxx（建议自己生成长字符串） 
+
+点击部署  
+
+说明  
+- 当前仓库代码默认使用 Durable Object 存储；如果你严格按上面 KV 步骤绑定了 KV，也不会影响部署成功（只是当前版本不依赖 `db` 变量）。  
+- 部署完成后访问你的 `*.workers.dev` 域名：`/`、`/admin`、`/api/links`。
 
 ## API
 
