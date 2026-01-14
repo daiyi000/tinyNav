@@ -2,6 +2,9 @@ name = "tinynav"
 main = "src/worker.ts"
 compatibility_date = "2026-01-14"
 
+[build]
+command = "npm run build"
+
 [assets]
 directory = "dist"
 binding = "ASSETS"
@@ -11,6 +14,6 @@ name = "CLOUDNAV_DB"
 class_name = "CloudNavDB"
 
 [[migrations]]
-tag = "v1"
+tag = "v2"
 new_sqlite_classes = ["CloudNavDB"]
 
