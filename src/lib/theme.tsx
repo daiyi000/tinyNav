@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 export type ThemeMode = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
@@ -23,28 +23,34 @@ function applyResolvedTheme(resolved: ResolvedTheme) {
   else root.classList.remove("dark");
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>("system");
-  const [resolved, setResolved] = useState<ResolvedTheme>("light");
-
-  useEffect(() => {
+function readStoredMode(): ThemeMode {
+  try {
     const stored = (localStorage.getItem(STORAGE_KEY) || "system") as ThemeMode;
-    const initialMode: ThemeMode = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
-    setModeState(initialMode);
-  }, []);
+    return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+  } catch {
+    return "system";
+  }
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [mode, setModeState] = useState<ThemeMode>(() => (typeof window === "undefined" ? "system" : readStoredMode()));
+  const [resolved, setResolved] = useState<ResolvedTheme>(() => {
+    if (typeof window === "undefined") return "light";
+    const initialMode = readStoredMode();
+    return initialMode === "system" ? getSystemTheme() : initialMode;
+  });
+
+  // Apply before paint to avoid a flash and to keep UI transitions consistent from first interaction.
+  useLayoutEffect(() => {
+    applyResolvedTheme(resolved);
+  }, [resolved]);
 
   useEffect(() => {
-    const compute = () => {
-      const nextResolved = mode === "system" ? getSystemTheme() : mode;
-      setResolved(nextResolved);
-      applyResolvedTheme(nextResolved);
-    };
-
-    compute();
     if (mode !== "system" || !window.matchMedia) return;
 
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => compute();
+    const onChange = () => setResolved(mql.matches ? "dark" : "light");
+    onChange();
     if (typeof mql.addEventListener === "function") mql.addEventListener("change", onChange);
     else mql.addListener(onChange);
     return () => {
@@ -55,6 +61,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setMode = useCallback((next: ThemeMode) => {
     setModeState(next);
+    setResolved(next === "system" ? getSystemTheme() : next);
     localStorage.setItem(STORAGE_KEY, next);
   }, []);
 

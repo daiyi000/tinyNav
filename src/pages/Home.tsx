@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Globe } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "../components/Card";
+import { MobileSearchFAB } from "../components/MobileSearchFAB";
 import { Navbar } from "../components/Navbar";
 import { SidebarCategoryPicker } from "../components/SidebarCategoryPicker";
 import { SearchBar } from "../components/SearchBar";
@@ -12,6 +13,10 @@ import { applyFavicon, normalizeSiteSettings } from "../lib/siteSettings";
 import type { CloudNavData, Group, LinkItem, Section } from "../types";
 
 const DEFAULT_SECTION_ID = "__default__";
+// Mobile header layout (below Navbar/AppBar)
+const APPBAR_H = 64; // px (visual height of the AppBar region)
+const GAP = 36; // px (space between AppBar and mobile header)
+const MOBILE_CAT_H = 56; // px (visual height of the mobile category bar)
 
 function normalizeText(s: string) {
   return s.trim().toLowerCase();
@@ -32,9 +37,78 @@ function safeHostname(url: string) {
   }
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !("matchMedia" in window)) return;
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    try {
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    } catch {
+      mql.addListener(onChange);
+      return () => mql.removeListener(onChange);
+    }
+  }, [query]);
+  return matches;
+}
+
+function MobileCategoryBar({
+  items,
+  selectedId,
+  onSelect
+}: {
+  items: { id: string; name: string; count: number }[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="glass rounded-2xl border border-white/10 bg-white/10 px-2 py-2 shadow-soft dark:bg-white/6 dark:shadow-softDark">
+      <div className="relative flex gap-2 overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((g) => {
+          const selected = g.id === selectedId;
+          return (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => onSelect(g.id)}
+              className={
+                "relative inline-flex shrink-0 items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm font-medium transition-colors " +
+                (selected ? "text-fg" : "text-fg/80 hover:text-fg hover:bg-white/8 dark:hover:bg-white/10")
+              }
+            >
+              {selected ? (
+                <motion.div
+                  layoutId="mobileCatSlider"
+                  aria-hidden
+                  className="absolute inset-0 rounded-full border border-white/40 bg-white/30 ring-1 ring-black/5 backdrop-blur-md dark:border-white/12 dark:bg-white/8 dark:ring-0"
+                  style={{ pointerEvents: "none" }}
+                  transition={{ type: "spring", stiffness: 650, damping: 48, mass: 0.8 }}
+                />
+              ) : null}
+              <span className="relative z-10 max-w-[14ch] truncate">{g.name}</span>
+              <span
+                className={
+                  "relative z-10 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs " +
+                  (selected ? "bg-black/8 text-fg/80 dark:bg-white/10" : "bg-black/5 text-muted dark:bg-white/8")
+                }
+              >
+                {g.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const reduceMotion = useReducedMotion();
   const { authed } = useMe();
+  const isMobile = useMediaQuery("(max-width: 640px)");
   const [data, setData] = useState<CloudNavData | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -199,14 +273,36 @@ export default function Home() {
   return (
     <div className="app-bg">
       <Navbar authed={authed === true} settings={data?.settings} />
-      <main className="mx-auto max-w-6xl px-4 pb-20 pt-8">
+
+      {isMobile ? (
+        <div className="fixed left-0 right-0 z-[39] sm:hidden" style={{ top: `${APPBAR_H + GAP}px` }}>
+          <div className="mx-auto max-w-6xl px-4">
+            <MobileCategoryBar
+              items={sidebarGroups}
+              selectedId={selectedGroupId}
+              onSelect={(id) => {
+                setSelectedGroupId(id);
+                setHoveredGroupId(id);
+                try {
+                  localStorage.setItem("cloudnav:selectedGroupId", id);
+                } catch {
+                  // ignore
+                }
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <main className="mx-auto max-w-6xl px-4 pb-20 pt-4 sm:pt-8">
+        {isMobile ? <div className="sm:hidden" style={{ height: `${MOBILE_CAT_H + GAP}px` }} /> : null}
         <motion.div
           initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
           animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
           transition={reduceMotion ? { duration: 0.18 } : { type: "spring", stiffness: 420, damping: 34 }}
           className="space-y-6"
         >
-          <div className="space-y-1">
+          <div className="hidden space-y-1 sm:block">
             <div className="text-2xl font-semibold tracking-tight">导航</div>
             <div className="text-sm text-muted">{site.homeTagline}</div>
           </div>
@@ -214,7 +310,7 @@ export default function Home() {
           {error ? <div className="glass rounded-2xl p-4 text-sm text-danger">{error}</div> : null}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-            <aside className="lg:col-span-3">
+            <aside className="hidden lg:block lg:col-span-3">
               <SidebarCategoryPicker
                 groups={sidebarGroups}
                 selectedId={selectedGroupId}
@@ -239,7 +335,7 @@ export default function Home() {
                   <div className="truncate text-sm font-semibold text-fg/90">{isAll ? "全部" : selectedGroup?.name ?? "—"}</div>
                   <div className="text-xs text-muted">{isAll ? allLinks.filter((l) => matchesQuery(l, query)).length : filteredLinks.length} 项</div>
                 </div>
-                <div className="w-full sm:w-[360px]">
+                <div className="hidden w-full sm:block sm:w-[360px]">
                   <SearchBar value={query} onChange={setQuery} />
                 </div>
               </div>
@@ -394,6 +490,8 @@ export default function Home() {
           </div>
         </motion.div>
       </main>
+
+      <MobileSearchFAB value={query} onChange={setQuery} />
     </div>
   );
 }

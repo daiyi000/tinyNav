@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
+    <script>
+      (() => {
+        try {
+          const key = "applebar:theme";
+          const stored = localStorage.getItem(key) || "system";
+          const mode = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+          const systemDark =
+            typeof window !== "undefined" &&
+            "matchMedia" in window &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const resolved = mode === "dark" || (mode === "system" && systemDark) ? "dark" : "light";
+          const root = document.documentElement;
+          if (resolved === "dark") root.classList.add("dark");
+          else root.classList.remove("dark");
+        } catch {
+          // ignore
+        }
+      })();
+    </script>
     <title>TinyNav</title>
   </head>
   <body>

@@ -1,5 +1,5 @@
 import { Laptop2, Moon, Settings, Sun, User } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion, useAnimationControls } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { normalizeSiteSettings } from "../lib/siteSettings";
@@ -8,14 +8,35 @@ import type { SiteSettings } from "../types";
 import { Button } from "./Button";
 import { TopBarIcon } from "./TopBarIcon";
 
+function usePrefersReducedMotion() {
+  const [reduce, setReduce] = useState(() => {
+    if (typeof window === "undefined" || !("matchMedia" in window)) return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("matchMedia" in window)) return;
+    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduce(mql.matches);
+    onChange();
+    try {
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    } catch {
+      mql.addListener(onChange);
+      return () => mql.removeListener(onChange);
+    }
+  }, []);
+
+  return reduce;
+}
+
 export function Navbar({ authed, settings }: { authed: boolean; settings?: SiteSettings }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const { mode, resolved, setMode } = useTheme();
-  const [open, setOpen] = useState(false);
-  const themeTriggerRef = useRef<HTMLDivElement | null>(null);
-  const themePanelRef = useRef<HTMLDivElement | null>(null);
-  const currentIcon =
-    mode === "system" ? <Laptop2 size={18} /> : resolved === "dark" ? <Moon size={18} /> : <Sun size={18} />;
+  const iconControls = useAnimationControls();
+  const [animTick, setAnimTick] = useState(0);
+  const lastAnimatedTickRef = useRef(0);
 
   const s = useMemo(() => normalizeSiteSettings(settings), [settings]);
 
@@ -24,29 +45,46 @@ export function Navbar({ authed, settings }: { authed: boolean; settings?: SiteS
   }, [s.siteTitle]);
 
   useEffect(() => {
-    if (!open) return;
+    if (animTick === 0) return;
+    if (lastAnimatedTickRef.current === animTick) return;
+    lastAnimatedTickRef.current = animTick;
 
-    const onPointerDownCapture = (e: PointerEvent) => {
-      const triggerEl = themeTriggerRef.current;
-      const panelEl = themePanelRef.current;
-      if (!triggerEl || !panelEl) return;
-      if (!(e.target instanceof Node)) return;
-      if (triggerEl.contains(e.target)) return;
-      if (panelEl.contains(e.target)) return;
-      setOpen(false);
-    };
+    iconControls.stop();
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
+    if (reduceMotion) {
+      void iconControls.start({ opacity: [0.7, 1], transition: { duration: 0.16, ease: "easeOut" } });
+      return;
+    }
 
-    document.addEventListener("pointerdown", onPointerDownCapture, true);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDownCapture, true);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+    iconControls.set({ rotate: 0, scale: 1, opacity: 1 });
+
+    if (mode === "dark") {
+      void iconControls.start({
+        rotate: [0, 270, 360],
+        scale: [1, 1.04, 1],
+        transition: {
+          rotate: { duration: 0.62, ease: "easeInOut" },
+          scale: { duration: 0.5, ease: "easeOut" }
+        }
+      });
+      return;
+    }
+
+    if (mode === "light") {
+      void iconControls.start({
+        scale: [1, 1.24, 0.98, 1.18, 1],
+        transition: { duration: 0.72, ease: "easeOut" }
+      });
+      return;
+    }
+
+    const rotate = resolved === "dark" ? [0, 14, -10, 0] : [0, -12, 10, 0];
+    void iconControls.start({
+      rotate,
+      scale: [1, 1.08, 1],
+      transition: { duration: 0.55, ease: "easeOut" }
+    });
+  }, [animTick, iconControls, mode, reduceMotion, resolved]);
 
   return (
     <header className="sticky top-0 z-40">
@@ -72,69 +110,26 @@ export function Navbar({ authed, settings }: { authed: boolean; settings?: SiteS
           </Link>
 
           <div className="flex items-center gap-2">
-            <div className="relative" ref={themeTriggerRef}>
-              <Button
-                variant="ghost"
-                className="h-10 px-3"
-                aria-label="Theme"
-                onClick={() => setOpen((v) => !v)}
-                leftIcon={currentIcon}
-              >
-                {mode === "system" ? "系统" : resolved === "dark" ? "深色" : "浅色"}
-              </Button>
-              <AnimatePresence>
-                {open ? (
-                  <motion.div
-                    ref={themePanelRef}
-                    initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.98 }}
-                    animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
-                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.98 }}
-                    transition={reduceMotion ? { duration: 0.12 } : { type: "spring", stiffness: 420, damping: 34 }}
-                    className="absolute right-0 mt-2 w-44 rounded-2xl glass-strong p-2 shadow-[0_30px_90px_rgba(0,0,0,.18)] dark:shadow-[0_30px_110px_rgba(0,0,0,.55)]"
-                    role="menu"
-                  >
-                    <div className="space-y-1">
-                      <Button
-                        variant={mode === "system" ? "secondary" : "ghost"}
-                        className="w-full justify-start"
-                        leftIcon={<Laptop2 size={18} />}
-                        onClick={() => {
-                          setMode("system");
-                          setOpen(false);
-                        }}
-                        role="menuitem"
-                      >
-                        系统
-                      </Button>
-                      <Button
-                        variant={mode === "light" ? "secondary" : "ghost"}
-                        className="w-full justify-start"
-                        leftIcon={<Sun size={18} />}
-                        onClick={() => {
-                          setMode("light");
-                          setOpen(false);
-                        }}
-                        role="menuitem"
-                      >
-                        浅色
-                      </Button>
-                      <Button
-                        variant={mode === "dark" ? "secondary" : "ghost"}
-                        className="w-full justify-start"
-                        leftIcon={<Moon size={18} />}
-                        onClick={() => {
-                          setMode("dark");
-                          setOpen(false);
-                        }}
-                        role="menuitem"
-                      >
-                        深色
-                      </Button>
-                    </div>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </div>
+            <motion.button
+              type="button"
+              aria-label={mode === "system" ? "系统" : mode === "dark" ? "深色" : "浅色"}
+              onClick={() => {
+                const next = mode === "system" ? "light" : mode === "light" ? "dark" : "system";
+                setMode(next);
+                setAnimTick((t) => t + 1);
+              }}
+              className={
+                "glass inline-flex h-10 w-10 items-center justify-center rounded-xl2 px-0 text-fg/80 " +
+                "transition-[box-shadow,transform,background,border-color,opacity] select-none " +
+                "focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-bg " +
+                "hover:text-fg hover:bg-white/6 dark:hover:bg-white/8"
+              }
+              whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+            >
+              <motion.span className="inline-flex" animate={iconControls} initial={false}>
+                {mode === "dark" ? <Moon size={20} /> : mode === "light" ? <Sun size={20} /> : <Laptop2 size={20} />}
+              </motion.span>
+            </motion.button>
 
             {authed ? (
               <Link to="/admin">
